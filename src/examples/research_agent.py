@@ -5,6 +5,11 @@ from langchain.chat_models import init_chat_model
 from deepagents import create_deep_agent as create_agent
 from langchain_mcp_adapters.client import MultiServerMCPClient
 import asyncio
+import logging
+
+# 配置日志
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 
 load_dotenv()
@@ -136,11 +141,21 @@ SKILL_SYSTEM_PROMPT = """
 
 # 方法二：
 
+logger.info("=" * 60)
+logger.info("【初始化智能体】research_agent (网络研究专家)")
+logger.info(f"【模型】{llm}")
+logger.info(f"【工具数量】{len(tools)}")
+logger.info(f"【系统提示词前100字】{SKILL_SYSTEM_PROMPT[:100]}...")
+logger.info(f"【Skills路径】/skills/")
+logger.info("=" * 60)
+
 agent = create_agent(
     model=llm,                    # 使用 DeepSeek 模型
     tools=tools + [] + [],                  # 注册天气查询工具
     middleware=[],
-    backend=FilesystemBackend(root_dir=r"C:\Users\65132\Desktop\workspace\testing\ai-test-agent-system\src\examples",virtual_mode=True),
+    backend=FilesystemBackend(root_dir=r"D:\PythonProject\ai-test-agent-system\src\examples",virtual_mode=True),
     skills=["/skills/"],
     system_prompt=SKILL_SYSTEM_PROMPT,  # 优化后的系统提示词
 )
+
+logger.info("✅ research_agent 创建成功")
