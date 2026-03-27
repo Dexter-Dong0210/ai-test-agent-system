@@ -6,6 +6,11 @@ from langchain.chat_models import init_chat_model
 
 from core.llms import image_llm_model, deepseek_model
 from middleware.pdf_context import PDFContextMiddleware
+import logging
+
+# 配置日志
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -166,9 +171,17 @@ async def dynamic_model_selection(request: ModelRequest, handler) -> ModelRespon
 
 # pylint: disable  My80OmFIVnBZMlhva2FQbHNJL21tS1U2V25ab1JBPT06NWRmMTRmZDY=
 
+logger.info("=" * 60)
+logger.info("【初始化智能体】testcase_agent (测试用例设计专家)")
+logger.info(f"【模型】{llm}")
+logger.info(f"【系统提示词前100字】{SYSTEM_PROMPT[:100]}...")
+logger.info("=" * 60)
+
 agent = create_agent(
     model=llm,
     tools=[],
     middleware=[dynamic_model_selection, PDFContextMiddleware(original_system_prompt=SYSTEM_PROMPT)],
     system_prompt=SYSTEM_PROMPT
 )
+
+logger.info("✅ testcase_agent 创建成功")

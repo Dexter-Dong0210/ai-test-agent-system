@@ -5,7 +5,7 @@
   "_buildId": "id_MC81OmFIVnBZMlhva2FQbHNJL21tS1U2UzBKbk5RPT06NzRiNGU4NDk=",
   "graphs": {
     "chat_agent": {
-      "path": "./src/agents/testcase/agent.py:agent"
+      "path": "./src/examples/test-case-generator.py:agent"
     }
   },
   "_deployId": "id_MS81OmFIVnBZMlhva2FQbHNJL21tS1U2UzBKbk5RPT06NzRiNGU4NDk=",

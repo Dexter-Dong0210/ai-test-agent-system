@@ -10,7 +10,8 @@ import sys
 import json
 from pathlib import Path
 
-
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_MALLOC"] = "0"
 def setup_environment():
     """Setup required environment variables"""
     # Add src to Python path
