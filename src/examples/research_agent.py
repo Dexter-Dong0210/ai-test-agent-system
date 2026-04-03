@@ -1,16 +1,9 @@
 from deepagents.backends import FilesystemBackend
-from deepagents.middleware import SkillsMiddleware
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from deepagents import create_deep_agent as create_agent
 from langchain_mcp_adapters.client import MultiServerMCPClient
 import asyncio
-import logging
-
-# 配置日志
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-
 
 load_dotenv()
 llm = init_chat_model("deepseek:deepseek-chat")
@@ -127,35 +120,15 @@ SKILL_SYSTEM_PROMPT = """
 ❌ 对简单问题过度搜索（超过15次总搜索）
 """
 
-# 方法一：
-# back = FilesystemBackend(root_dir=r"C:\Users\65132\Desktop\workspace\testing\ai-test-agent-system\src\examples",virtual_mode=True)
-#
-# skill_mid = SkillsMiddleware(backend=back, sources=["/skills/"])
-#
-# agent = create_agent(
-#     model=llm,                    # 使用 DeepSeek 模型
-#     tools=tools + [] + [],                  # 注册天气查询工具
-#     middleware=[skill_mid],
-#     system_prompt=SKILL_SYSTEM_PROMPT,  # 优化后的系统提示词
-# )
 
-# 方法二：
 
-logger.info("=" * 60)
-logger.info("【初始化智能体】research_agent (网络研究专家)")
-logger.info(f"【模型】{llm}")
-logger.info(f"【工具数量】{len(tools)}")
-logger.info(f"【系统提示词前100字】{SKILL_SYSTEM_PROMPT[:100]}...")
-logger.info(f"【Skills路径】/skills/")
-logger.info("=" * 60)
 
 agent = create_agent(
     model=llm,                    # 使用 DeepSeek 模型
-    tools=tools + [] + [],                  # 注册天气查询工具
+    tools=tools + [] + [],
     middleware=[],
     backend=FilesystemBackend(root_dir=r"D:\PythonProject\ai-test-agent-system\src\examples",virtual_mode=True),
     skills=["/skills/"],
     system_prompt=SKILL_SYSTEM_PROMPT,  # 优化后的系统提示词
 )
 
-logger.info("✅ research_agent 创建成功")
