@@ -1,0 +1,182 @@
+"""
+版权所有 (c) 2023-2026 北京慧测信息技术有限公司(但问智能) 保留所有权利。
+
+本代码版权归北京慧测信息技术有限公司(但问智能)所有，仅用于学习交流目的，未经公司商业授权，
+不得用于任何商业用途，包括但不限于商业环境部署、售卖或以任何形式进行商业获利。违者必究。
+
+授权商业应用请联系微信：huice666
+"""
+
+import pathlib
+
+import jsonschema_rs
+import orjson
+# noqa  MC80OmFIVnBZMlhva2FQbHNJL21tS1U2ZDNoRGVBPT06MGMzOTllODg=
+
+with open(pathlib.Path(__file__).parent.parent / "openapi.json", encoding='utf-8') as f:
+    openapi_str = f.read()
+
+openapi = orjson.loads(openapi_str)
+
+ConfigValidator = jsonschema_rs.validator_for(
+    openapi["components"]["schemas"]["Config"]
+)
+AssistantVersionsSearchRequest = jsonschema_rs.validator_for(
+    openapi["components"]["schemas"]["AssistantVersionsSearchRequest"]
+)
+AssistantSearchRequest = jsonschema_rs.validator_for(
+    openapi["components"]["schemas"]["AssistantSearchRequest"]
+)
+AssistantCountRequest = jsonschema_rs.validator_for(
+    openapi["components"]["schemas"]["AssistantCountRequest"]
+)
+ThreadSearchRequest = jsonschema_rs.validator_for(
+    openapi["components"]["schemas"]["ThreadSearchRequest"]
+)
+ThreadCountRequest = jsonschema_rs.validator_for(
+    openapi["components"]["schemas"]["ThreadCountRequest"]
+)
+AssistantCreate = jsonschema_rs.validator_for(
+    openapi["components"]["schemas"]["AssistantCreate"]
+)
+AssistantPatch = jsonschema_rs.validator_for(
+    openapi["components"]["schemas"]["AssistantPatch"]
+)
+AssistantVersionChange = jsonschema_rs.validator_for(
+    openapi["components"]["schemas"]["AssistantVersionChange"]
+)
+ThreadCreate = jsonschema_rs.validator_for(
+    {
+        **openapi["components"]["schemas"]["ThreadCreate"],
+        "components": {
+            "schemas": {
+                "ThreadSuperstepUpdate": openapi["components"]["schemas"][
+                    "ThreadSuperstepUpdate"
+                ],
+                "Command": openapi["components"]["schemas"]["Command"],
+                "Send": openapi["components"]["schemas"]["Send"],
+            }
+        },
+    }
+)
+ThreadPatch = jsonschema_rs.validator_for(
+    openapi["components"]["schemas"]["ThreadPatch"]
+)
+ThreadStateUpdate = jsonschema_rs.validator_for(
+    {
+        **openapi["components"]["schemas"]["ThreadStateUpdate"],
+        "components": {
+            "schemas": {
+                "CheckpointConfig": openapi["components"]["schemas"]["CheckpointConfig"]
+            }
+        },
+    }
+)
+# pragma: no cover  MS80OmFIVnBZMlhva2FQbHNJL21tS1U2ZDNoRGVBPT06MGMzOTllODg=
+
+ThreadStateCheckpointRequest = jsonschema_rs.validator_for(
+    {
+        **openapi["components"]["schemas"]["ThreadStateCheckpointRequest"],
+        "components": {
+            "schemas": {
+                "CheckpointConfig": openapi["components"]["schemas"]["CheckpointConfig"]
+            }
+        },
+    }
+)
+ThreadStateSearch = jsonschema_rs.validator_for(
+    {
+        **openapi["components"]["schemas"]["ThreadStateSearch"],
+        "components": {
+            "schemas": {
+                "CheckpointConfig": openapi["components"]["schemas"]["CheckpointConfig"]
+            }
+        },
+    }
+)
+RunCreateStateless = jsonschema_rs.validator_for(
+    {
+        **openapi["components"]["schemas"]["RunCreateStateless"],
+        "components": {
+            "schemas": {
+                "Command": openapi["components"]["schemas"]["Command"],
+                "Send": openapi["components"]["schemas"]["Send"],
+            }
+        },
+    }
+)
+RunBatchCreate = jsonschema_rs.validator_for(
+    {
+        **openapi["components"]["schemas"]["RunBatchCreate"],
+        "components": {
+            "schemas": {
+                "RunCreateStateless": openapi["components"]["schemas"][
+                    "RunCreateStateless"
+                ],
+                "Command": openapi["components"]["schemas"]["Command"],
+                "Send": openapi["components"]["schemas"]["Send"],
+            }
+        },
+    }
+)
+RunCreateStateful = jsonschema_rs.validator_for(
+    {
+        **openapi["components"]["schemas"]["RunCreateStateful"],
+        "components": {
+            "schemas": {
+                "CheckpointConfig": openapi["components"]["schemas"][
+                    "CheckpointConfig"
+                ],
+                "Command": openapi["components"]["schemas"]["Command"],
+                "Send": openapi["components"]["schemas"]["Send"],
+            }
+        },
+    }
+)
+RunsCancel = jsonschema_rs.validator_for(openapi["components"]["schemas"]["RunsCancel"])
+CronCreate = jsonschema_rs.validator_for(openapi["components"]["schemas"]["CronCreate"])
+ThreadCronCreate = jsonschema_rs.validator_for(
+    openapi["components"]["schemas"]["ThreadCronCreate"]
+)
+CronSearch = jsonschema_rs.validator_for(openapi["components"]["schemas"]["CronSearch"])
+CronCountRequest = jsonschema_rs.validator_for(
+    openapi["components"]["schemas"]["CronCountRequest"]
+)
+
+# noqa  Mi80OmFIVnBZMlhva2FQbHNJL21tS1U2ZDNoRGVBPT06MGMzOTllODg=
+
+# Stuff around storage/BaseStore API
+StorePutRequest = jsonschema_rs.validator_for(
+    openapi["components"]["schemas"]["StorePutRequest"]
+)
+StoreSearchRequest = jsonschema_rs.validator_for(
+    openapi["components"]["schemas"]["StoreSearchRequest"]
+)
+StoreDeleteRequest = jsonschema_rs.validator_for(
+    openapi["components"]["schemas"]["StoreDeleteRequest"]
+)
+StoreListNamespacesRequest = jsonschema_rs.validator_for(
+    openapi["components"]["schemas"]["StoreListNamespacesRequest"]
+)
+
+
+DOCS_HTML = """<!doctype html>
+<html>
+  <head>
+    <title>Scalar API Reference</title>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1" />
+  </head>
+  <body>
+    <script id="api-reference" data-url="{mount_prefix}/openapi.json"></script>
+    <script>
+      var configuration = {{}}
+      document.getElementById('api-reference').dataset.configuration =
+        JSON.stringify(configuration)
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+  </body>
+</html>"""
+# pylint: disable  My80OmFIVnBZMlhva2FQbHNJL21tS1U2ZDNoRGVBPT06MGMzOTllODg=

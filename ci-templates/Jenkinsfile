@@ -1,0 +1,153 @@
+// Jenkins Pipeline 示例
+//
+// 功能：集成变更分析和质量门禁
+//
+
+pipeline {
+    agent any
+    
+    environment {
+        AI_TEST_PLATFORM = 'http://ai-test-platform:8001'
+        AI_PLATFORM_TOKEN = credentials('ai-platform-token')
+    }
+    
+    stages {
+        stage('Analyze Changes') {
+            steps {
+                script {
+                    echo '🔍 触发变更分析...'
+                    
+                    def response = sh(
+                        script: """
+                            curl -s -X POST "${AI_TEST_PLATFORM}/api/v2/change/analyze" \
+                                -H "Content-Type: application/json" \
+                                -H "Authorization: Bearer ${AI_PLATFORM_TOKEN}" \
+                                -d '{
+                                    "base_branch": "${env.CHANGE_TARGET ?: 'develop'}",
+                                    "compare_branch": "${env.BRANCH_NAME}",
+                                    "repo_url": "${env.GIT_URL}",
+                                    "project_id": "${env.PROJECT_NAME}",
+                                    "mr_iid": ${env.CHANGE_ID ?: 'null'},
+                                    "commit_sha": "${env.GIT_COMMIT}"
+                                }'
+                        """,
+                        returnStdout: true
+                    )
+                    
+                    def result = readJSON text: response
+                    env.WORKFLOW_ID = result.workflow_id
+                    
+                    echo "✅ 变更分析已触发: ${env.WORKFLOW_ID}"
+                }
+            }
+        }
+        
+        stage('Wait for Analysis') {
+            steps {
+                script {
+                    echo '⏳ 等待变更分析完成...'
+                    
+                    def status = 'running'
+                    def maxAttempts = 60
+                    def attempt = 0
+                    
+                    while (status == 'running' && attempt < maxAttempts) {
+                        sleep(time: 5, unit: 'SECONDS')
+                        attempt++
+                        
+                        def result = sh(
+                            script: "curl -s ${AI_TEST_PLATFORM}/api/v2/change/workflow/${env.WORKFLOW_ID}",
+                            returnStdout: true
+                        )
+                        
+                        def workflow = readJSON text: result
+                        status = workflow.status
+                        
+                        echo "[${attempt}/${maxAttempts}] 状态: ${status}"
+                        
+                        if (status == 'passed') {
+                            echo '✅ 变更分析通过'
+                            env.WORKFLOW_RESULT = result
+                        } else if (status in ['failed', 'error']) {
+                            error("变更分析失败: ${workflow.error}")
+                        }
+                    }
+                    
+                    if (status == 'running') {
+                        error('等待超时')
+                    }
+                }
+            }
+        }
+        
+        stage('Quality Gate') {
+            steps {
+                script {
+                    echo '🚦 评估质量门禁...'
+                    
+                    if (!env.WORKFLOW_RESULT) {
+                        echo '⚠️  无工作流结果，跳过门禁'
+                        return
+                    }
+                    
+                    def result = readJSON text: env.WORKFLOW_RESULT
+                    def gateResult = result.gate_result
+                    
+                    echo "门禁状态: ${gateResult.status}"
+                    echo "门禁动作: ${gateResult.action}"
+                    
+                    if (gateResult.action == 'block') {
+                        error("质量门禁未通过: ${gateResult.block_reason}")
+                    } else if (gateResult.action == 'warn') {
+                        unstable("质量门禁警告: ${gateResult.block_reason}")
+                    } else {
+                        echo '✅ 质量门禁通过'
+                    }
+                }
+            }
+        }
+    }
+    
+    post {
+        failure {
+            script {
+                // 发送钉钉通知
+                dingtalk(
+                    robot: 'test-robot',
+                    type: 'MARKDOWN',
+                    title: '❌ 质量门禁失败',
+                    text: [
+                        "## ❌ 质量门禁失败",
+                        "",
+                        "- **项目**: ${env.PROJECT_NAME}",
+                        "- **分支**: ${env.BRANCH_NAME}",
+                        "- **提交**: ${env.GIT_COMMIT}",
+                        "- **工作流**: ${env.WORKFLOW_ID}",
+                        "",
+                        "---",
+                        "*AI 测试平台*"
+                    ]
+                )
+            }
+        }
+        
+        success {
+            script {
+                dingtalk(
+                    robot: 'test-robot',
+                    type: 'MARKDOWN',
+                    title: '✅ 质量门禁通过',
+                    text: [
+                        "## ✅ 质量门禁通过",
+                        "",
+                        "- **项目**: ${env.PROJECT_NAME}",
+                        "- **分支**: ${env.BRANCH_NAME}",
+                        "",
+                        "---",
+                        "*AI 测试平台*"
+                    ]
+                )
+            }
+        }
+    }
+}

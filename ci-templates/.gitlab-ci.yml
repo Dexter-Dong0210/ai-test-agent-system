@@ -1,0 +1,129 @@
+# GitLab CI/CD 配置示例
+#
+# 功能：集成变更分析和质量门禁
+#
+
+stages:
+  - analyze
+  - test
+  - gate
+
+variables:
+  AI_TEST_PLATFORM: "http://ai-test-platform:8001"
+  AI_PLATFORM_TOKEN: "${AI_PLATFORM_TOKEN}"
+
+# 1. 变更分析
+analyze_changes:
+  stage: analyze
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache curl jq
+  script:
+    - |
+      echo "🔍 触发变更分析..."
+      
+      RESPONSE=$(curl -s -X POST "${AI_TEST_PLATFORM}/api/v2/change/analyze" \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer ${AI_PLATFORM_TOKEN}" \
+        -d "{
+          \"base_branch\": \"${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-develop}\",
+          \"compare_branch\": \"${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:-$CI_COMMIT_REF_NAME}\",
+          \"repo_url\": \"${CI_REPOSITORY_URL}\",
+          \"project_id\": \"${CI_PROJECT_ID}\",
+          \"mr_iid\": ${CI_MERGE_REQUEST_IID:-null},
+          \"commit_sha\": \"${CI_COMMIT_SHA}\"
+        }")
+      
+      echo "$RESPONSE" > analysis_result.json
+      
+      WORKFLOW_ID=$(echo $RESPONSE | jq -r '.workflow_id')
+      echo "WORKFLOW_ID=$WORKFLOW_ID" >> analyze.env
+      
+      echo "✅ 变更分析已触发: $WORKFLOW_ID"
+  artifacts:
+    reports:
+      dotenv: analyze.env
+    paths:
+      - analysis_result.json
+  only:
+    - merge_requests
+    - branches
+  except:
+    - main
+    - master
+    - develop
+
+# 2. 等待分析完成
+wait_for_analysis:
+  stage: test
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache curl jq
+  script:
+    - |
+      echo "⏳ 等待变更分析完成..."
+      
+      for i in {1..60}; do
+        sleep 5
+        
+        RESULT=$(curl -s "${AI_TEST_PLATFORM}/api/v2/change/workflow/${WORKFLOW_ID}")
+        STATUS=$(echo $RESULT | jq -r '.status')
+        
+        echo "[$i/60] 状态: $STATUS"
+        
+        if [ "$STATUS" = "passed" ]; then
+          echo "✅ 变更分析通过"
+          echo "$RESULT" > workflow_result.json
+          exit 0
+        elif [ "$STATUS" = "failed" ] || [ "$STATUS" = "error" ]; then
+          echo "❌ 变更分析失败"
+          echo "$RESULT" | jq '.'
+          exit 1
+        fi
+      done
+      
+      echo "⏰ 等待超时"
+      exit 1
+  artifacts:
+    paths:
+      - workflow_result.json
+  needs:
+    - analyze_changes
+  only:
+    - merge_requests
+
+# 3. 质量门禁
+quality_gate:
+  stage: gate
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache curl jq
+  script:
+    - |
+      echo "🚦 评估质量门禁..."
+      
+      if [ ! -f workflow_result.json ]; then
+        echo "⚠️  无工作流结果，跳过门禁"
+        exit 0
+      fi
+      
+      GATE_STATUS=$(cat workflow_result.json | jq -r '.gate_result.status')
+      GATE_ACTION=$(cat workflow_result.json | jq -r '.gate_result.action')
+      
+      echo "门禁状态: $GATE_STATUS"
+      echo "门禁动作: $GATE_ACTION"
+      
+      if [ "$GATE_ACTION" = "block" ]; then
+        echo "❌ 质量门禁未通过"
+        cat workflow_result.json | jq '.gate_result.block_reason'
+        exit 1
+      elif [ "$GATE_ACTION" = "warn" ]; then
+        echo "⚠️  质量门禁警告"
+        cat workflow_result.json | jq '.gate_result.block_reason'
+      else
+        echo "✅ 质量门禁通过"
+      fi
+  needs:
+    - wait_for_analysis
+  only:
+    - merge_requests

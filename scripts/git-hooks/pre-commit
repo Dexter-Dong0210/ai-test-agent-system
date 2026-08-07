@@ -1,0 +1,55 @@
+#!/bin/bash
+#
+# Git pre-commit hook
+#
+# 功能：在提交代码前检查是否有敏感信息
+# 用法：将此文件复制到 .git/hooks/pre-commit 并赋予执行权限
+#
+
+set -e
+
+# 检查敏感信息
+PATTERNS=(
+    "password\s*=\s*['\"][^'\"]+['\"]"
+    "api_key\s*=\s*['\"][^'\"]+['\"]"
+    "secret\s*=\s*['\"][^'\"]+['\"]"
+    "token\s*=\s*['\"][^'\"]+['\"]"
+    "AWS_ACCESS_KEY_ID\s*=\s*['\"][^'\"]+['\"]"
+    "AWS_SECRET_ACCESS_KEY\s*=\s*['\"][^'\"]+['\"]"
+)
+
+FILES=$(git diff --cached --name-only)
+
+if [ -z "$FILES" ]; then
+    exit 0
+fi
+
+echo "🔍 检查敏感信息..."
+
+FOUND=false
+
+for FILE in $FILES; do
+    if [ ! -f "$FILE" ]; then
+        continue
+    fi
+    
+    CONTENT=$(git diff --cached "$FILE")
+    
+    for PATTERN in "${PATTERNS[@]}"; do
+        if echo "$CONTENT" | grep -qE "$PATTERN"; then
+            echo "⚠️  发现敏感信息: $FILE"
+            echo "   匹配模式: $PATTERN"
+            FOUND=true
+        fi
+    done
+done
+
+if [ "$FOUND" = true ]; then
+    echo ""
+    echo "❌ 提交被阻断：发现敏感信息"
+    echo "   请移除敏感信息或使用环境变量"
+    exit 1
+fi
+
+echo "✅ 检查通过"
+exit 0

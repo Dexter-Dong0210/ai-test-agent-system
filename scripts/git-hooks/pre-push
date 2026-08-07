@@ -1,0 +1,116 @@
+#!/bin/bash
+#
+# Git pre-push hook
+#
+# 功能：在推送代码前自动触发变更分析
+# 用法：将此文件复制到 .git/hooks/pre-push 并赋予执行权限
+#
+
+set -e
+
+# 配置
+AI_TEST_PLATFORM="${AI_TEST_PLATFORM:-http://localhost:8001}"
+AI_PLATFORM_TOKEN="${AI_PLATFORM_TOKEN:-}"
+TRIGGER_BRANCHES="feature/ hotfix/ bugfix/ release/"
+
+# 获取当前分支
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+echo "🔍 检查分支: $CURRENT_BRANCH"
+
+# 判断是否触发分析
+should_trigger=false
+for pattern in $TRIGGER_BRANCHES; do
+    if [[ "$CURRENT_BRANCH" == "$pattern"* ]]; then
+        should_trigger=true
+        break
+    fi
+done
+
+if [ "$should_trigger" = false ]; then
+    echo "✅ 分支不满足触发条件，跳过变更分析"
+    exit 0
+fi
+
+# 获取要推送的 commits
+REMOTE="$1"
+URL="$2"
+
+echo "📡 检查推送内容..."
+
+while read local_ref local_oid remote_ref remote_oid; do
+    if [ "$local_oid" = "$remote_oid" ]; then
+        continue
+    fi
+    
+    # 新分支
+    if [ "$remote_oid" = "0000000000000000000000000000000000000000" ]; then
+        echo "✅ 新分支推送，跳过变更分析"
+        continue
+    fi
+    
+    echo "🚀 触发变更分析..."
+    
+    # 构建请求
+    REQUEST=$(cat <<EOF
+{
+    "base_branch": "develop",
+    "compare_branch": "$CURRENT_BRANCH",
+    "repo_url": "$URL",
+    "project_id": "$(basename $(git rev-parse --show-toplevel))"
+}
+EOF
+)
+    
+    # 调用变更分析 API
+    if [ -n "$AI_PLATFORM_TOKEN" ]; then
+        RESPONSE=$(curl -s -X POST "$AI_TEST_PLATFORM/api/v2/change/analyze" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $AI_PLATFORM_TOKEN" \
+            -d "$REQUEST")
+    else
+        RESPONSE=$(curl -s -X POST "$AI_TEST_PLATFORM/api/v2/change/analyze" \
+            -H "Content-Type: application/json" \
+            -d "$REQUEST")
+    fi
+    
+    # 解析响应
+    WORKFLOW_ID=$(echo "$RESPONSE" | jq -r '.workflow_id // empty')
+    STATUS=$(echo "$RESPONSE" | jq -r '.status // empty')
+    
+    if [ -z "$WORKFLOW_ID" ]; then
+        echo "❌ 触发变更分析失败"
+        echo "$RESPONSE" | jq .
+        exit 1
+    fi
+    
+    echo "✅ 变更分析已触发: $WORKFLOW_ID"
+    
+    # 等待分析完成（可选）
+    if [ "${WAIT_FOR_RESULT:-false}" = "true" ]; then
+        echo "⏳ 等待分析完成..."
+        
+        for i in {1..60}; do
+            sleep 2
+            
+            RESULT=$(curl -s "$AI_TEST_PLATFORM/api/v2/change/workflow/$WORKFLOW_ID")
+            WORKFLOW_STATUS=$(echo "$RESULT" | jq -r '.status')
+            
+            if [ "$WORKFLOW_STATUS" = "passed" ]; then
+                echo "✅ 变更分析通过"
+                exit 0
+            elif [ "$WORKFLOW_STATUS" = "failed" ] || [ "$WORKFLOW_STATUS" = "error" ]; then
+                echo "❌ 变更分析失败"
+                echo "$RESULT" | jq '.gate_result'
+                exit 1
+            fi
+            
+            echo "  [$i/60] 状态: $WORKFLOW_STATUS"
+        done
+        
+        echo "⏰ 等待超时"
+        exit 1
+    fi
+done
+
+exit 0
